@@ -2,9 +2,24 @@ import pathlib
 import re
 import sys
 
+import aw_core.dirs
 import tomlkit
 
 from aw_watcher_window import config as config_module
+
+
+def _patch_config_dir(monkeypatch, tmp_path):
+    """Point aw_core's config dir at tmp_path on all platforms.
+
+    XDG_CONFIG_HOME is Linux-only; appdirs ignores it on macOS/Windows.
+    Patching get_config_dir directly is cross-platform.
+    """
+    def _mock(module_name=None):
+        base = tmp_path / "activitywatch"
+        result = base / module_name if module_name else base
+        result.mkdir(parents=True, exist_ok=True)
+        return str(result)
+    monkeypatch.setattr(aw_core.dirs, "get_config_dir", _mock)
 
 
 def test_first_run_config_has_no_research_keys(tmp_path, monkeypatch):
@@ -15,7 +30,7 @@ def test_first_run_config_has_no_research_keys(tmp_path, monkeypatch):
     table in the template lands verbatim in every new user's config file.
     Verified by symptom: run against an empty config dir and read what was written.
     """
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    _patch_config_dir(monkeypatch, tmp_path)
 
     config_module.load_config()
 
@@ -28,7 +43,7 @@ def test_first_run_config_has_no_research_keys(tmp_path, monkeypatch):
 
 def test_research_options_are_read_when_user_sets_them(tmp_path, monkeypatch):
     """Absent from the template, but honoured when a Research Edition user opts in."""
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    _patch_config_dir(monkeypatch, tmp_path)
     config_path = tmp_path / "activitywatch" / "aw-watcher-window"
     config_path.mkdir(parents=True)
     (config_path / "aw-watcher-window.toml").write_text(
@@ -95,7 +110,7 @@ def test_research_edition_sed_target_is_intact():
 
 def test_parse_args_defaults_research_off_without_config(tmp_path, monkeypatch):
     """No research keys anywhere => disabled, with empty maps."""
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    _patch_config_dir(monkeypatch, tmp_path)
     monkeypatch.setattr(sys, "argv", ["aw-watcher-window"])
 
     args = config_module.parse_args()

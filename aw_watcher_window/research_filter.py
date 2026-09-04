@@ -60,24 +60,46 @@ def is_browser(app: str) -> bool:
     return app.strip().lower() in BROWSER_APPS
 
 
+def _longest_match(haystack: str, category_map: dict) -> Optional[str]:
+    """
+    Return the category of the *longest* pattern contained in *haystack*.
+
+    Longest-match beats insertion order because study maps routinely contain
+    both a generic and a specific form of the same host: ``google.com`` →
+    *Search & Navigation* and ``docs.google.com`` → *Work & Productivity*.
+    First-match-wins would file every Google Docs/Drive/Calendar/Meet URL as
+    Search, since ``google.com`` is a substring of all of them.
+
+    Ties (equal-length patterns) resolve to the first one in map order.
+    """
+    best_category: Optional[str] = None
+    best_len = -1
+    for pattern, category in category_map.items():
+        pattern_lower = pattern.lower()
+        if pattern_lower and pattern_lower in haystack and len(pattern_lower) > best_len:
+            best_category = category
+            best_len = len(pattern_lower)
+    return best_category
+
+
 def classify_title(title: str, category_map: dict, url: str = "") -> str:
     """
     Classify a browser window into a study category via substring matching.
 
     Tries *url* first when provided (more reliable than page titles, which can
     change mid-load), then falls back to *title*.
-    *category_map*: ``{substring: category_name}`` — first matching substring wins.
+    *category_map*: ``{substring: category_name}`` — the **longest** matching
+    substring wins, so a specific host (``docs.google.com``) is not shadowed by
+    a generic one (``google.com``) that happens to be listed earlier.
     Returns the category name, or ``"excluded"`` if nothing matched.
     """
     if url:
-        url_lower = url.lower()
-        for pattern, category in category_map.items():
-            if pattern.lower() in url_lower:
-                return category
-    title_lower = title.lower()
-    for pattern, category in category_map.items():
-        if pattern.lower() in title_lower:
+        category = _longest_match(url.lower(), category_map)
+        if category is not None:
             return category
+    category = _longest_match(title.lower(), category_map)
+    if category is not None:
+        return category
     return "excluded"
 
 

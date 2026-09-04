@@ -76,10 +76,15 @@ class TestClassifyTitle(unittest.TestCase):
             "excluded",
         )
 
-    def test_first_match_wins(self):
-        # Both "facebook" and "twitter" present — first pattern in iteration wins
+    def test_longest_pattern_wins(self):
+        # Both "facebook" (8) and "twitter" (7) present — the longer pattern wins
         result = classify_title("Facebook Twitter integration - Chrome", self.CATEGORY_MAP)
         self.assertEqual(result, "Facebook")
+
+    def test_equal_length_patterns_resolve_to_map_order(self):
+        # "gmail" and "inbox" are both 5 chars — the earlier map entry wins
+        category_map = {"gmail": "Email", "inbox": "Other"}
+        self.assertEqual(classify_title("gmail inbox", category_map), "Email")
 
     def test_empty_title(self):
         self.assertEqual(classify_title("", self.CATEGORY_MAP), "excluded")
@@ -340,6 +345,54 @@ class TestTransformWithAppMap(unittest.TestCase):
         original = dict(window)
         transform(window, self.CATEGORY_MAP, self.APP_CATEGORY_MAP)
         self.assertEqual(window, original)
+
+class TestSpecificHostBeatsGenericHost(unittest.TestCase):
+    """Regression: a generic host must not shadow a more specific one.
+
+    Study maps list ``google.com`` well before ``docs.google.com``. Under
+    first-match-wins every Google Workspace URL was filed as *Search &
+    Navigation* instead of *Work & Productivity* — reported from the
+    Research Edition b4 field test.
+    """
+
+    CATEGORY_MAP = {
+        "google.com": "Search & Navigation",
+        "docs.google.com": "Work & Productivity",
+        "drive.google.com": "Work & Productivity",
+        "calendar.google.com": "Work & Productivity",
+        "meet.google.com": "Work & Productivity",
+    }
+
+    def test_workspace_urls_are_work_not_search(self):
+        for url in (
+            "https://docs.google.com/document/d/abc/edit",
+            "https://drive.google.com/drive/my-drive",
+            "https://calendar.google.com/calendar/u/0/r",
+            "https://meet.google.com/xyz-abcd-efg",
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(
+                    classify_title("", self.CATEGORY_MAP, url=url),
+                    "Work & Productivity",
+                )
+
+    def test_plain_google_search_still_matches_generic(self):
+        self.assertEqual(
+            classify_title("", self.CATEGORY_MAP, url="https://www.google.com/search?q=aw"),
+            "Search & Navigation",
+        )
+
+    def test_specific_host_also_wins_on_title_fallback(self):
+        self.assertEqual(
+            classify_title("docs.google.com - Untitled", self.CATEGORY_MAP),
+            "Work & Productivity",
+        )
+
+    def test_empty_pattern_is_ignored(self):
+        # An empty map key matches everything under `in`; it must not swallow input.
+        category_map = {"": "Bogus", "youtube": "Youtube"}
+        self.assertEqual(classify_title("youtube - Chrome", category_map), "Youtube")
+        self.assertEqual(classify_title("unrelated", category_map), "excluded")
 
 
 if __name__ == "__main__":
