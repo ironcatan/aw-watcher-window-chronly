@@ -148,8 +148,13 @@ def heartbeat_loop(
     research_category_map=None,
     research_app_category_map=None,
 ):
+    # Comparing against the initial ppid (rather than the literal value 1)
+    # matches aw-watcher-afk's approach: some supervisors (or sandboxed
+    # environments) already report ppid==1 at startup, which would make the
+    # naive check exit immediately even though the parent never died.
+    initial_ppid = os.getppid()
     while True:
-        if os.getppid() == 1:
+        if os.getppid() != initial_ppid:
             logger.info("window-watcher stopped because parent process died")
             break
 
