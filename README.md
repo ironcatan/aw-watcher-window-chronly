@@ -1,5 +1,11 @@
-aw-watcher-window
+aw-watcher-window (Chronly fork)
 =================
+
+**This is Chronly's window watcher, a private fork of ActivityWatch's
+`aw-watcher-window`, maintained by Manuel Arroyo Algar. Not affiliated with
+or endorsed by the ActivityWatch project.** Licensed under MPLv2, same as
+upstream. Only change so far: fixed a macOS sandboxing edge case where the
+watcher exited immediately, thinking its parent process had died.
 
 Cross-platform window-Watcher for Linux (X11), macOS, Windows.
 
